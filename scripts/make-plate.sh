@@ -1,0 +1,14 @@
+#!/bin/sh
+# Generates a license-plate "photo" (SVG) - used to simulate the IoT camera.
+# Usage: make-plate.sh <plate> <output-file>
+PLATE="$1"
+OUT="$2"
+cat > "$OUT" <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="130" viewBox="0 0 520 130">
+  <rect x="4" y="4" width="512" height="122" rx="14" fill="#F7C600" stroke="#111" stroke-width="6"/>
+  <rect x="4" y="4" width="70" height="122" rx="14" fill="#1F4FA3"/>
+  <text x="39" y="58" font-family="Arial" font-size="22" fill="#fff" text-anchor="middle" font-weight="bold">IL</text>
+  <text x="39" y="98" font-family="Arial" font-size="15" fill="#fff" text-anchor="middle">ישראל</text>
+  <text x="295" y="92" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="#111" text-anchor="middle" letter-spacing="4">$PLATE</text>
+</svg>
+SVG
