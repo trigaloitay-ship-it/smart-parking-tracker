@@ -1,0 +1,40 @@
+# Smart Parking License Plate Tracker - Track 1 (Lite)
+# Two microservices: web (Nginx dashboard) + storage (Apache image store)
+
+services:
+  web:
+    build: ./web
+    image: parking-web:latest
+    container_name: parking-web
+    ports:
+      - "8080:80"            # guard opens http://localhost:8080
+    depends_on:
+      storage:
+        condition: service_healthy
+    networks:
+      - parking-net
+    restart: unless-stopped
+
+  storage:
+    build: ./storage
+    image: parking-storage:latest
+    container_name: parking-storage
+    ports:
+      - "8081:80"            # direct access to the image store (optional)
+    volumes:
+      - plates-data:/usr/local/apache2/htdocs/images   # persistent images
+    networks:
+      - parking-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/images/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  plates-data:               # named volume - survives "docker compose down"
+
+networks:
+  parking-net:
+    driver: bridge
