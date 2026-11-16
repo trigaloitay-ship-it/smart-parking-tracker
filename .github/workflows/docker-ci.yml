@@ -1,0 +1,79 @@
+name: Docker CI/CD
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start the stack
+        run: docker compose up -d --wait
+
+      - name: Smoke test - dashboard (Nginx)
+        run: curl -fsS http://localhost:8080/ | grep -q "Smart Parking"
+
+      - name: Smoke test - storage through the proxy (Apache)
+        run: curl -fsS http://localhost:8080/storage/images/ | grep -q ".svg"
+
+      - name: Smoke test - camera simulation
+        run: |
+          sh scripts/simulate-camera.sh 111-22-333
+          FILE=$(curl -fsS http://localhost:8080/storage/images/ | grep -o '111-22-333_[0-9-]*\.svg' | head -1)
+          curl -fsS "http://localhost:8080/storage/images/$FILE" | grep -q "111-22-333"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+
+  # Bonus: push images to GitHub Container Registry (only from main)
+  push-to-ghcr:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [web, storage]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lowercase owner name (GHCR requires lowercase)
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push parking-${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/parking-${{ matrix.service }}:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/parking-${{ matrix.service }}:${{ github.sha }}
