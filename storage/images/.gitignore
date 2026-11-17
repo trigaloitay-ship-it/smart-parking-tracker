@@ -1,0 +1,6 @@
+# Photos captured during demos are not committed - only the 3 seed photos
+*
+!.gitignore
+!123-45-678_20261116-063012.png
+!54-321-09_20261116-064540.png
+!777-88-999_20261116-070205.png

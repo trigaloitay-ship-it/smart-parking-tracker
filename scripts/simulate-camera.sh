@@ -1,23 +1,25 @@
 #!/bin/sh
-# Simulates the IoT camera: "photographs" a car and saves the image
-# into the storage service (inside the named volume).
-# Usage: ./scripts/simulate-camera.sh [plate]      e.g. ./scripts/simulate-camera.sh 123-45-678
+# Simulates the IoT camera: "photographs" a car and saves the photo
+# into the storage folder (./storage/images, mounted into Apache).
+# Usage: ./scripts/simulate-camera.sh [plate]   e.g. ./scripts/simulate-camera.sh 482-17-305
+# Without a plate, a random photo from camera/samples is used.
 set -e
 cd "$(dirname "$0")/.."
 
 if [ -n "$1" ]; then
-  PLATE="$1"
+  PHOTO="camera/samples/$1.png"
+  if [ ! -f "$PHOTO" ]; then
+    echo "No photo for plate $1. Available plates:"; ls camera/samples | sed 's/\.png$//'
+    exit 1
+  fi
 else
-  # random Israeli-style plate: 123-45-678
-  PLATE="$(awk 'BEGIN{srand(); printf "%03d-%02d-%03d", int(rand()*900)+100, int(rand()*90)+10, int(rand()*900)+100}')"
+  PHOTO="$(ls camera/samples/*.png | awk 'BEGIN{srand()} {a[NR]=$0} END{print a[int(rand()*NR)+1]}')"
 fi
 
+PLATE="$(basename "$PHOTO" .png)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-FILE="${PLATE}_${STAMP}.svg"
-TMP="$(mktemp)"
+FILE="${PLATE}_${STAMP}.png"
 
-sh scripts/make-plate.sh "$PLATE" "$TMP"
-chmod 644 "$TMP"   # Apache must be able to read the file
-docker compose cp "$TMP" "storage:/usr/local/apache2/htdocs/images/$FILE"
-rm -f "$TMP"
-echo "📸 Camera captured: $PLATE  ->  $FILE"
+cp "$PHOTO" "storage/images/$FILE"
+chmod 644 "storage/images/$FILE"   # Apache must be able to read it
+echo "📸 Camera captured: $PLATE  ->  storage/images/$FILE"

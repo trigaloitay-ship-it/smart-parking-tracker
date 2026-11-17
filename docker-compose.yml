@@ -22,7 +22,10 @@ services:
     ports:
       - "8081:80"            # direct access to the image store (optional)
     volumes:
-      - plates-data:/usr/local/apache2/htdocs/images   # persistent images
+      # Bind mount: the camera folder on the host IS Apache's images folder.
+      # Drop a photo into ./storage/images -> it appears on the dashboard.
+      # Files live on the host, so they survive "docker compose down".
+      - ./storage/images:/usr/local/apache2/htdocs/images
     networks:
       - parking-net
     healthcheck:
@@ -31,9 +34,6 @@ services:
       timeout: 3s
       retries: 3
     restart: unless-stopped
-
-volumes:
-  plates-data:               # named volume - survives "docker compose down"
 
 networks:
   parking-net:

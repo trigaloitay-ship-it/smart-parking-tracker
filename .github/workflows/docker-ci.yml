@@ -28,13 +28,19 @@ jobs:
         run: curl -fsS http://localhost:8080/ | grep -q "Smart Parking"
 
       - name: Smoke test - storage through the proxy (Apache)
-        run: curl -fsS http://localhost:8080/storage/images/ | grep -q ".svg"
+        run: curl -fsS http://localhost:8080/storage/images/ | grep -q ".png"
 
       - name: Smoke test - camera simulation
         run: |
-          sh scripts/simulate-camera.sh 111-22-333
-          FILE=$(curl -fsS http://localhost:8080/storage/images/ | grep -o '111-22-333_[0-9-]*\.svg' | head -1)
-          curl -fsS "http://localhost:8080/storage/images/$FILE" | grep -q "111-22-333"
+          sh scripts/simulate-camera.sh 482-17-305
+          FILE=$(curl -fsS http://localhost:8080/storage/images/ | grep -o '482-17-305_[0-9-]*\.png' | head -1)
+          test -n "$FILE"
+          curl -fsS -o /dev/null -w "%{content_type}\n" "http://localhost:8080/storage/images/$FILE" | grep -q "image/png"
+
+      - name: Smoke test - photo dropped into the folder by hand
+        run: |
+          cp camera/samples/316-52-840.png storage/images/manual-test.png
+          curl -fsS http://localhost:8080/storage/images/ | grep -q "manual-test.png"
 
       - name: Show logs on failure
         if: failure()

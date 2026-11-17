@@ -16,10 +16,10 @@
  Guard browser   │  ┌──────────────┐  /storage/*   ┌──────────────────┐ │
  :8080  ───────────▶│ web (Nginx)  │ ─────────────▶│ storage (Apache) │ │
                  │  │ index.html   │  proxy_pass   │ /htdocs/images   │ │
-                 │  └──────────────┘               └────────┬─────────┘ │
+                 │  └──────────────┘               └────────▲─────────┘ │
                  └──────────────────────────────────────────│───────────┘
- IoT camera (simulate-camera.sh) ── docker compose cp ──────▶│
-                                                    volume: plates-data
+                                          volume (bind mount)│
+ IoT camera ── saves photo.png ──▶  ./storage/images  ───────┘
 ```
 
 | שירות | Image | פורט | תפקיד |
@@ -31,18 +31,18 @@
 
 ```
 smart-parking-tracker/
-├── docker-compose.yml          # אורקסטרציה: 2 שירותים, רשת, volume
+├── docker-compose.yml          # אורקסטרציה: 2 שירותים, רשת, volume (bind mount)
 ├── web/
 │   ├── Dockerfile              # nginx + הקונפיג + הדשבורד
 │   ├── nginx.conf              # הגשת HTML + proxy ל-/storage/
 │   └── index.html              # לוח הבקרה לשומר
 ├── storage/
-│   ├── Dockerfile              # httpd + תמונות התחלתיות
-│   └── images/                 # תמונות seed
+│   ├── Dockerfile              # httpd – שרת אחסון בלבד
+│   └── images/                 # 📸 תיקיית המצלמה – כל תמונה כאן מופיעה בדשבורד
+├── camera/samples/             # תמונות לוחיות לדוגמה (PNG) לסימולציית המצלמה
 ├── scripts/
 │   ├── simulate-camera.sh      # סימולציית מצלמה (Linux/Mac/Git Bash)
-│   ├── simulate-camera.ps1     # סימולציית מצלמה (Windows PowerShell)
-│   └── make-plate.sh           # יוצר "תמונה" של לוחית (SVG)
+│   └── simulate-camera.ps1     # סימולציית מצלמה (Windows PowerShell)
 └── .github/workflows/
     └── docker-ci.yml           # CI/CD: build + בדיקות + push ל-GHCR
 ```
@@ -56,30 +56,37 @@ docker compose up -d --build
 - לוח הבקרה: http://localhost:8080
 - שרת האחסון ישירות: http://localhost:8081/images/
 
-סימולציית מצלמה (רכב חדש נכנס):
+### רכב חדש נכנס – הוספת תמונה
+
+התיקייה `storage/images` במחשב **מחוברת ישירות** לתיקיית התמונות של Apache (bind mount).
+המצלמה שומרת בה את תמונת הלוחית – וכל תמונה (`.png` / `.jpg` / `.jpeg` / `.webp`) שנכנסת לתיקייה מופיעה בדשבורד תוך 5 שניות, עם מסגרת ירוקה.
+
+**דרך 1 – ידנית:** להעתיק / לגרור תמונת לוחית לתיקייה `storage/images`.
+- שם הקובץ = מספר הלוחית, למשל `905-31-462.png`. השעה נלקחת מזמן שמירת הקובץ.
+- או בפורמט המצלמה `<לוחית>_<YYYYMMDD-HHMMSS>.png`, למשל `905-31-462_20261117-081500.png`.
+
+**דרך 2 – סימולציית מצלמה:** הסקריפט מעתיק תמונה מ-`camera/samples` עם חותמת זמן:
 
 ```bash
 ./scripts/simulate-camera.sh              # לוחית אקראית
-./scripts/simulate-camera.sh 123-45-678   # לוחית מסוימת
+./scripts/simulate-camera.sh 482-17-305   # לוחית מסוימת (מתוך camera/samples)
 ```
 
 ב-Windows:
 
 ```powershell
-.\scripts\simulate-camera.ps1 -Plate 123-45-678
+powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1 -Plate 482-17-305
 ```
-
-הכרטיס החדש יופיע בדשבורד תוך 5 שניות, עם מסגרת ירוקה.
 
 ## Data Persistence – הדגמה
 
 ```bash
-./scripts/simulate-camera.sh 999-99-999
+./scripts/simulate-camera.sh 482-17-305
 docker compose down          # הקונטיינרים נמחקים
 docker compose up -d         # עולים מחדש
-# הרכב 999-99-999 עדיין מופיע! התמונות נשמרות ב-volume בשם plates-data
-docker volume ls
-docker compose down -v       # רק -v מוחק גם את ה-volume
+# הרכב 482-17-305 עדיין מופיע!
+# התמונות שמורות במחשב (storage/images) ולא בתוך הקונטיינר –
+# ה-volume מחבר את התיקייה לקונטיינר, ולכן היא שורדת גם down -v
 ```
 
 ## CI/CD
@@ -88,7 +95,7 @@ docker compose down -v       # רק -v מוחק גם את ה-volume
 
 1. בודק שה-`docker-compose.yml` תקין
 2. בונה את שני ה-Images
-3. מרים את המערכת ומריץ Smoke tests עם `curl` (דשבורד, proxy, סימולציית מצלמה)
+3. מרים את המערכת ומריץ Smoke tests עם `curl` (דשבורד, proxy, סימולציית מצלמה, תמונה שהועתקה ידנית לתיקייה)
 4. **בונוס:** בכל push ל-`main` – מעלה את ה-Images ל-GitHub Container Registry:
    - `ghcr.io/<owner>/parking-web`
    - `ghcr.io/<owner>/parking-storage`
