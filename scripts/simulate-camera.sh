@@ -1,8 +1,8 @@
 #!/bin/sh
-# Simulates the IoT camera: "photographs" a car and saves the photo
-# into the storage folder (./storage/images, mounted into Apache).
+# Simulates the IoT camera: takes a license-plate photo from camera/samples
+# and saves it into the named volume via add-car.sh.
 # Usage: ./scripts/simulate-camera.sh [plate]   e.g. ./scripts/simulate-camera.sh 482-17-305
-# Without a plate, a random photo from camera/samples is used.
+# Without a plate, a random photo is used.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -16,10 +16,5 @@ else
   PHOTO="$(ls camera/samples/*.png | awk 'BEGIN{srand()} {a[NR]=$0} END{print a[int(rand()*NR)+1]}')"
 fi
 
-PLATE="$(basename "$PHOTO" .png)"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-FILE="${PLATE}_${STAMP}.png"
-
-cp "$PHOTO" "storage/images/$FILE"
-chmod 644 "storage/images/$FILE"   # Apache must be able to read it
-echo "📸 Camera captured: $PLATE  ->  storage/images/$FILE"
+echo "📸 Camera captured $(basename "$PHOTO" .png)"
+sh scripts/add-car.sh "$PHOTO"

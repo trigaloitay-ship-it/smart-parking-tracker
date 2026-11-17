@@ -28,19 +28,31 @@ jobs:
         run: curl -fsS http://localhost:8080/ | grep -q "Smart Parking"
 
       - name: Smoke test - storage through the proxy (Apache)
-        run: curl -fsS http://localhost:8080/storage/images/ | grep -q ".png"
+        run: curl -fsS http://localhost:8080/storage/images/ | grep -q "Index of /images"
+
+      - name: Smoke test - the image has no photos baked in (volume starts empty)
+        run: |
+          COUNT=$(docker compose exec -T storage sh -c 'ls /usr/local/apache2/htdocs/images | wc -l')
+          test "$COUNT" -eq 0
+
+      - name: Smoke test - add a car into the volume
+        run: |
+          sh scripts/add-car.sh camera/samples/316-52-840.png
+          FILE=$(curl -fsS http://localhost:8080/storage/images/ | grep -o '316-52-840_[0-9-]*\.png' | head -1)
+          test -n "$FILE"
+          curl -fsS -o /dev/null -w "%{content_type}\n" "http://localhost:8080/storage/images/$FILE" | grep -q "image/png"
 
       - name: Smoke test - camera simulation
         run: |
           sh scripts/simulate-camera.sh 482-17-305
-          FILE=$(curl -fsS http://localhost:8080/storage/images/ | grep -o '482-17-305_[0-9-]*\.png' | head -1)
-          test -n "$FILE"
-          curl -fsS -o /dev/null -w "%{content_type}\n" "http://localhost:8080/storage/images/$FILE" | grep -q "image/png"
+          curl -fsS http://localhost:8080/storage/images/ | grep -q '482-17-305_'
 
-      - name: Smoke test - photo dropped into the folder by hand
+      - name: Smoke test - photos survive "docker compose down" (persistence)
         run: |
-          cp camera/samples/316-52-840.png storage/images/manual-test.png
-          curl -fsS http://localhost:8080/storage/images/ | grep -q "manual-test.png"
+          docker compose down
+          docker compose up -d --wait
+          curl -fsS http://localhost:8080/storage/images/ | grep -q '316-52-840_'
+          curl -fsS http://localhost:8080/storage/images/ | grep -q '482-17-305_'
 
       - name: Show logs on failure
         if: failure()

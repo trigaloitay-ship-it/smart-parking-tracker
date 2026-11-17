@@ -1,3 +1,1 @@
-# Photos are mounted at runtime, not copied into the image
-images/
 *.md

@@ -1,7 +1,7 @@
 # Windows version of simulate-camera.sh
-# Simulates the IoT camera: copies a license-plate photo into storage\images
+# Simulates the IoT camera: takes a photo from camera\samples and saves it
+# into the named volume via add-car.ps1.
 # Usage: .\scripts\simulate-camera.ps1 [-Plate 482-17-305]
-# Without -Plate, a random photo from camera\samples is used.
 param([string]$Plate)
 Set-Location (Join-Path $PSScriptRoot "..")
 
@@ -12,12 +12,9 @@ if ($Plate) {
     Get-ChildItem "camera\samples\*.png" | ForEach-Object { $_.BaseName }
     exit 1
   }
-  $Photo = Get-Item $Photo
 } else {
-  $Photo = Get-ChildItem "camera\samples\*.png" | Get-Random
+  $Photo = (Get-ChildItem "camera\samples\*.png" | Get-Random).FullName
 }
 
-$Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$File  = "$($Photo.BaseName)_$Stamp.png"
-Copy-Item $Photo.FullName (Join-Path "storage\images" $File)
-Write-Host "Camera captured: $($Photo.BaseName) -> storage\images\$File"
+Write-Host "Camera captured $([IO.Path]::GetFileNameWithoutExtension($Photo))"
+& (Join-Path $PSScriptRoot "add-car.ps1") $Photo
