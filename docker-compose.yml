@@ -1,34 +1,33 @@
 # Smart Parking License Plate Tracker - Track 1 (Lite)
-# Two microservices: web (Nginx dashboard) + storage (Apache image store)
+# Two containers (web + storage) and one named volume (plates-data).
 
 services:
+  # Dashboard for the parking guard (Nginx)
   web:
-    build: ./web
-    image: parking-web:latest
+    build: ./web                     # build the image from web/Dockerfile
+    image: parking-web:latest        # name of the image we build
     container_name: parking-web
     ports:
-      - "8080:80"            # guard opens http://localhost:8080
+      - "8080:80"                    # host port 8080 -> port 80 inside the container
     depends_on:
       storage:
-        condition: service_healthy
+        condition: service_healthy   # start only after storage answers HTTP (see healthcheck)
     networks:
-      - parking-net
-    restart: unless-stopped
+      - parking-net                  # same network as storage -> can reach it by the name "storage"
+    restart: unless-stopped          # if the container crashes, Docker starts it again
 
+  # Photo storage server for the IoT camera (Apache)
   storage:
-    build: ./storage
+    build: ./storage                 # build the image from storage/Dockerfile
     image: parking-storage:latest
     container_name: parking-storage
     ports:
-      - "8081:80"            # direct access to the image store (optional)
+      - "8081:80"                    # optional: open the photo store directly in the browser
     volumes:
-      # Named volume: the ONLY source of photos Apache serves.
-      # Add photos with scripts/add-car (docker compose cp into the volume).
-      # Managed by Docker, survives "docker compose down".
-      - plates-data:/usr/local/apache2/htdocs/images
+      - plates-data:/usr/local/apache2/htdocs/images   # the ONLY place photos come from
     networks:
       - parking-net
-    healthcheck:
+    healthcheck:                     # "is Apache really answering?" - checked every 10 seconds
       test: ["CMD", "wget", "-q", "--spider", "http://localhost/images/"]
       interval: 10s
       timeout: 3s
@@ -36,8 +35,9 @@ services:
     restart: unless-stopped
 
 volumes:
-  plates-data:               # named volume - deleted only by "docker compose down -v"
+  plates-data:                       # named volume managed by Docker - survives "docker compose down"
+                                     # (only "docker compose down -v" deletes it)
 
 networks:
   parking-net:
-    driver: bridge
+    driver: bridge                   # private network for our two containers

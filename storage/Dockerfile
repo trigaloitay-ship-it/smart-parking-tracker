@@ -1,8 +1,12 @@
+# Storage server: a small Apache that ONLY serves the camera photos
+
+# Start from a ready-made Apache on Alpine Linux (small image)
 FROM httpd:2.4-alpine
-# Storage only: Apache serves the license-plate photos as static files.
-# No photos are baked into the image - they live ONLY in the named volume
-# "plates-data", mounted at /usr/local/apache2/htdocs/images (see docker-compose.yml).
-# Make sure the folder exists and is readable for Apache before the volume is mounted.
+
+# No photos are copied into the image - they live only in the named volume "plates-data".
+# Create the folder the volume is mounted on.
+# (Apache's default config already shows a file list for folders - the dashboard reads it.)
 RUN mkdir -p /usr/local/apache2/htdocs/images
-# Apache's default config already enables directory listing (Options Indexes).
+
+# Apache listens on port 80 inside the container
 EXPOSE 80

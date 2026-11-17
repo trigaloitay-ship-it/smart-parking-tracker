@@ -1,5 +1,6 @@
 name: Docker CI/CD
 
+# Run on every push to any branch, and on every Pull Request
 on:
   push:
     branches: ["**"]
@@ -9,20 +10,21 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # Job 1: build the images, start the system and check that it really works
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest                    # a clean Linux machine from GitHub, Docker already installed
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5             # download the repo's code onto the machine
 
       - name: Validate docker-compose.yml
-        run: docker compose config --quiet
+        run: docker compose config --quiet    # fails if the YAML is broken
 
       - name: Build images
-        run: docker compose build
+        run: docker compose build             # builds both images; fails = red X
 
       - name: Start the stack
-        run: docker compose up -d --wait
+        run: docker compose up -d --wait      # start everything and wait until healthy
 
       - name: Smoke test - dashboard (Nginx)
         run: curl -fsS http://localhost:8080/ | grep -q "Smart Parking"
@@ -62,7 +64,8 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  # Bonus: push images to GitHub Container Registry (only from main)
+  # Job 2 (bonus): push the images to GitHub Container Registry - only from main,
+  # and only after Job 1 passed
   push-to-ghcr:
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -75,7 +78,7 @@ jobs:
         service: [web, storage]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Lowercase owner name (GHCR requires lowercase)
         run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
@@ -85,7 +88,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # automatic token - no password in the code
 
       - name: Build and push parking-${{ matrix.service }}
         uses: docker/build-push-action@v6

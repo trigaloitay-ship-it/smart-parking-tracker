@@ -1,50 +1,34 @@
 # 🅿️ Smart Parking License Plate Tracker
 
-מערכת לניהול כניסת רכבים לחניון חכם – **Track 1 (Lite): Nginx + Apache + Docker Compose**.
+לוח בקרה חי לשומר בכניסה לחניון. כל לוחית רישוי שהמצלמה מצלמת נשמרת ב-Volume של שרת האחסון,
+וקופצת במסך של השומר תוך 5 שניות – **בלי שהוא צריך לרענן את הדף**.
 
-מצלמת IoT מצלמת את לוחית הרישוי של כל רכב שנכנס ושומרת את התמונה בשרת אחסון ייעודי.
-השומר פותח לוח בקרה בדפדפן ורואה את כל הרכבים שנכנסו – הרשימה מתעדכנת אוטומטית כל 5 שניות.
+> מסלול: **Track 1 – Lite** (HTML + Nginx + Apache) · Docker Compose · Named Volume · GitHub Actions · GHCR
 
-![CI](../../actions/workflows/docker-ci.yml/badge.svg)
+[![Docker CI/CD](https://github.com/trigaloitay-ship-it/smart-parking-tracker/actions/workflows/docker-ci.yml/badge.svg)](https://github.com/trigaloitay-ship-it/smart-parking-tracker/actions/workflows/docker-ci.yml)
 
-![Dashboard](docs/dashboard.png)
+![לוח הבקרה](docs/dashboard.png)
 
 ## ארכיטקטורה
 
 ```
-                 ┌──────────────── parking-net (bridge) ────────────────┐
- Guard browser   │  ┌──────────────┐  /storage/*   ┌──────────────────┐ │
- :8080  ───────────▶│ web (Nginx)  │ ─────────────▶│ storage (Apache) │ │
-                 │  │ index.html   │  proxy_pass   │ /htdocs/images   │ │
-                 │  └──────────────┘               └────────▲─────────┘ │
-                 └──────────────────────────────────────────│───────────┘
-                                                            │ mounted
- IoT camera ── add-car ── docker compose cp ──▶ named volume: plates-data
+ דפדפן השומר
+     │
+     └── http://localhost:8080 ──► web (Nginx)  – מגיש את לוח הבקרה (index.html)
+                                     │
+                                     │  /storage/  →  proxy_pass  (רשת פנימית parking-net)
+                                     ▼
+                                  storage (Apache) – מגיש את תמונות הלוחיות
+                                     │
+                                     └── Named Volume "plates-data" – המקור היחיד לתמונות
+
+ מצלמת IoT (add-car / simulate-camera) ── docker compose cp ──► Volume "plates-data"
 ```
 
-| שירות | Image | פורט | תפקיד |
+| שירות | אימג' בסיס | פורט | תפקיד |
 |---|---|---|---|
-| `web` | `nginx:1.27-alpine` | 8080 | מגיש את לוח הבקרה (HTML/JS) ומשמש Reverse Proxy ל-storage |
-| `storage` | `httpd:2.4-alpine` | 8081 | שרת אחסון בלבד – מגיש את תמונות הלוחיות |
-
-## מבנה הפרויקט
-
-```
-smart-parking-tracker/
-├── docker-compose.yml          # אורקסטרציה: 2 שירותים, רשת, named volume plates-data
-├── web/
-│   ├── Dockerfile              # nginx + הקונפיג + הדשבורד
-│   ├── nginx.conf              # הגשת HTML + proxy ל-/storage/
-│   └── index.html              # לוח הבקרה לשומר
-├── storage/
-│   └── Dockerfile              # httpd – שרת אחסון בלבד, בלי תמונות בתוך ה-Image
-├── camera/samples/             # תמונות לוחיות לדוגמה (PNG) לסימולציית המצלמה
-├── scripts/
-│   ├── add-car.sh / .ps1       # מוסיף תמונת לוחית ל-volume (Linux/Mac · Windows)
-│   └── simulate-camera.sh / .ps1  # סימולציית מצלמה: תמונה אקראית מ-camera/samples
-└── .github/workflows/
-    └── docker-ci.yml           # CI/CD: build + בדיקות + push ל-GHCR
-```
+| `web` | `nginx:1.27-alpine` | 8080 | לוח הבקרה לשומר + Reverse Proxy ל-storage |
+| `storage` | `httpd:2.4-alpine` | 8081 | שרת אחסון בלבד – מגיש את תמונות המצלמה מה-Volume |
 
 ## הרצה
 
@@ -55,68 +39,119 @@ docker compose up -d --build
 - לוח הבקרה: http://localhost:8080
 - שרת האחסון ישירות: http://localhost:8081/images/
 
-### רכב חדש נכנס – הוספת תמונה ל-Volume
+בהרצה הראשונה הלוח **ריק** – אין תמונות בתוך האימג', הכול מגיע מה-Volume.
 
-Apache מגיש תמונות **אך ורק מה-Named Volume `plates-data`**. אין תמונות בתוך ה-Image ואין תיקייה מהמחשב –
-כשהמערכת עולה בפעם הראשונה הלוח ריק. כל תמונה (`.png` / `.jpg` / `.jpeg` / `.webp`) שנכנסת ל-volume מופיעה בדשבורד תוך 5 שניות, עם מסגרת ירוקה.
-
-**הוספת תמונה כלשהי** – הסקריפט מעתיק אותה לתוך ה-volume (`docker compose cp`) עם חותמת זמן.
-מספר הלוחית נלקח משם הקובץ, למשל `905-31-462.png`:
+כיבוי המערכת – הרכבים שכבר נכנסו לא נמחקים, כי הם ב-Volume:
 
 ```bash
-./scripts/add-car.sh camera/samples/905-31-462.png
+docker compose down
+```
+
+## רכב חדש נכנס – הוספת תמונה ל-Volume
+
+`add-car` מעתיק תמונת לוחית כלשהי (`.png` / `.jpg` / `.jpeg` / `.webp`) לתוך ה-Volume (`docker compose cp`) ומוסיף חותמת זמן.
+מספר הלוחית נלקח משם הקובץ, למשל `905-31-462.png`.
+
+```bash
+./scripts/add-car.sh camera/samples/905-31-462.png     # Linux / Mac
+./scripts/simulate-camera.sh                           # "המצלמה" – תמונה אקראית מ-camera/samples
 ```
 
 ב-Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\add-car.ps1 camera\samples\905-31-462.png
+powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1
 ```
 
-**סימולציית מצלמה** – בוחרת תמונה מ-`camera/samples` ומוסיפה אותה ל-volume:
+הרכב מופיע בלוח הבקרה תוך 5 שניות, עם **מסגרת ירוקה**.
 
-```bash
-./scripts/simulate-camera.sh              # לוחית אקראית
-./scripts/simulate-camera.sh 482-17-305   # לוחית מסוימת
-```
+## הדגמת Volume
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1 -Plate 482-17-305
-```
+1. מרימים את המערכת – הלוח ריק:
 
-## Data Persistence – הדגמה
+   ```bash
+   docker compose up -d --build
+   ```
 
-```bash
-./scripts/simulate-camera.sh 482-17-305
-docker compose down          # הקונטיינרים נמחקים
-docker compose up -d         # עולים מחדש
-# הרכב 482-17-305 עדיין מופיע! התמונות שמורות ב-volume בשם plates-data
-docker volume ls
-docker compose down -v       # רק -v מוחק גם את ה-volume (והתמונות)
-```
+2. "המצלמה" מצלמת רכב חדש ושומרת אותו ב-Volume:
+
+   ```bash
+   ./scripts/add-car.sh camera/samples/482-17-305.png
+   ```
+
+   בלי לרענן: הרכב מופיע בירוק, המונה עולה ל-1.
+3. מוחקים ומקימים מחדש את הקונטיינרים:
+
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+4. הרכב עדיין שם – התמונה שמורה ב-Volume `plates-data` ולא בתוך הקונטיינר:
+
+   ```bash
+   docker volume ls
+   ```
+
+> ⚠️ הדגל `-v` (`docker compose down -v`) מוחק את `plates-data` יחד עם כל הרכבים. הוא שימושי רק לפני דמו, כדי שהלוח יתחיל ריק.
 
 ## CI/CD
 
-ה-Workflow ‏`.github/workflows/docker-ci.yml` רץ בכל `push` ו-Pull Request:
+בכל `push` ובכל Pull Request רץ ב-GitHub Actions ה-Workflow [`.github/workflows/docker-ci.yml`](.github/workflows/docker-ci.yml):
 
 1. בודק שה-`docker-compose.yml` תקין
-2. בונה את שני ה-Images
-3. מרים את המערכת ומריץ Smoke tests עם `curl`: דשבורד, proxy, ה-volume מתחיל ריק, הוספת רכב, סימולציית מצלמה,
-   ו-Persistence (`down` + `up` – התמונות עדיין שם)
-4. **בונוס:** בכל push ל-`main` – מעלה את ה-Images ל-GitHub Container Registry:
-   - `ghcr.io/<owner>/parking-web`
-   - `ghcr.io/<owner>/parking-storage`
+2. בונה את שני האימג'ים (`docker compose build`)
+3. מרים את המערכת ובודק עם `curl`: הדשבורד, ה-proxy, שה-Volume מתחיל ריק, הוספת רכב, סימולציית מצלמה,
+   ושהתמונות שורדות `down` + `up`
+4. **בונוס:** ב-push ל-`main`, ורק אם הבדיקות עברו – מעלה את האימג'ים ל-GitHub Container Registry:
+   `ghcr.io/trigaloitay-ship-it/parking-web` ו-`ghcr.io/trigaloitay-ship-it/parking-storage`
 
-## עבודת צוות
+אם אחת הבדיקות נכשלת, הריצה אדומה, הלוגים מודפסים, ושום אימג' לא עולה ל-GHCR.
 
-- כל חבר צוות עובד ב-branch משלו (`feature/...`) ופותח Pull Request ל-`main`
-- ה-CI חייב לעבור לפני Merge
-- לפחות commit אחד מכל חבר צוות
+## האלמנט האישי שלנו: לוח בקרה חי
 
-| חבר צוות | אחריות |
+השומר לא צריך ללחוץ F5. קוד JavaScript ב-[`web/index.html`](web/index.html):
+
+- כל 5 שניות קורא עם `fetch` את רשימת הקבצים שהמצלמה שמרה ב-Volume (דרך ה-proxy של Nginx).
+- מוציא מכל שם קובץ את **מספר הלוחית** ואת **שעת הכניסה** – בלי מסד נתונים.
+- בונה כרטיס לכל רכב, מעדכן את **מונה הרכבים** ואת **שעת הכניסה האחרונה**.
+- רכב חדש מקבל **מסגרת ירוקה**, כדי שהשומר יראה מיד מי נכנס עכשיו.
+
+בחרנו בזה כי שומר בכניסה לא יושב ומרענן דף – הוא צריך לראות רכב חדש ברגע שהמצלמה מצלמת אותו.
+וזה גם מראה בדמו בצורה ברורה את ה-Volume: מוסיפים תמונה ל-Volume, והיא קופצת בלוח.
+
+## שימוש ב-AI
+
+עבדנו עם Claude. הפרומפטים, הטעויות של ה-AI ואיך תיקנו אותן מתועדים ב-[`AI_USAGE.md`](AI_USAGE.md).
+
+## מבנה הפרויקט
+
+```
+smart-parking-tracker/
+├── docker-compose.yml          # 2 שירותים, רשת parking-net, Named Volume plates-data
+├── web/
+│   ├── Dockerfile              # Nginx + הקונפיג + לוח הבקרה
+│   ├── nginx.conf              # הגשת הדף + proxy ל-/storage/
+│   └── index.html              # לוח הבקרה החי
+├── storage/
+│   └── Dockerfile              # Apache – שרת אחסון בלבד, בלי תמונות בתוך האימג'
+├── camera/samples/             # תמונות לוחיות לדוגמה (PNG) – "המצלמה"
+├── scripts/
+│   ├── add-car.sh / .ps1       # מוסיף תמונת לוחית ל-Volume
+│   └── simulate-camera.sh / .ps1  # בוחר תמונה אקראית ומפעיל את add-car
+├── docs/                       # המצגת וצילום המסך
+├── AI_USAGE.md                 # תיעוד השימוש ב-AI
+└── .github/workflows/
+    └── docker-ci.yml           # CI/CD: build + בדיקות + push ל-GHCR
+```
+
+## הצוות
+
+| שם | אחריות |
 |---|---|
-| איתי טריגלו | שירות web: Nginx + לוח הבקרה · CI/CD + העלאה ל-GHCR |
-| אור חיים עזרייה | שירות storage: Apache + Volume · סימולציית מצלמה · README |
+| איתי טריגלו | `docker-compose.yml`, לוח הבקרה (web + Nginx), ה-CI/CD וההעלאה ל-GHCR |
+| אור חיים עזרייה | שרת האחסון (storage + Apache), ה-Volume, המצלמה (`add-car`), README |
 
 ## פתרון בעיות ב-Windows
 
