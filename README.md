@@ -110,3 +110,12 @@ docker compose up -d         # עולים מחדש
 |---|---|
 | איתי טריגלו | שירות web: Nginx + לוח הבקרה · CI/CD + העלאה ל-GHCR |
 | אור חיים עזרייה | שירות storage: Apache + Volume · סימולציית מצלמה · README |
+
+## פתרון בעיות ב-Windows
+
+| הודעת שגיאה | פתרון |
+|---|---|
+| `'docker' is not recognized` | להתקין Docker Desktop: https://www.docker.com/products/docker-desktop |
+| `failed to connect to the docker API` | לפתוח את Docker Desktop ולחכות ל-"Engine running" |
+| הסקריפט `simulate-camera.ps1` נחסם | להריץ עם `powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1` |
+| תמונה לא מופיעה בדשבורד | לוודא שהקובץ בתיקייה `storage\images` ושהסיומת היא png / jpg / webp |
