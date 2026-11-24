@@ -22,7 +22,7 @@
                                      │
                                      └── Named Volume "plates-data" – המקור היחיד לתמונות
 
- מצלמת IoT (add-car / simulate-camera) ── docker compose cp ──► Volume "plates-data"
+ מצלמת IoT (add-car) ── docker compose cp ──► Volume "plates-data"
 ```
 
 | שירות | אימג' בסיס | פורט | תפקיד |
@@ -54,14 +54,12 @@ docker compose down
 
 ```bash
 ./scripts/add-car.sh camera/samples/905-31-462.png     # Linux / Mac
-./scripts/simulate-camera.sh                           # "המצלמה" – תמונה אקראית מ-camera/samples
 ```
 
 ב-Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\add-car.ps1 camera\samples\905-31-462.png
-powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1
 ```
 
 הרכב מופיע בלוח הבקרה תוך 5 שניות, עם **מסגרת ירוקה**.
@@ -102,7 +100,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\simulate-camera.ps1
 
 1. בודק שה-`docker-compose.yml` תקין
 2. בונה את שני האימג'ים (`docker compose build`)
-3. מרים את המערכת ובודק עם `curl`: הדשבורד, ה-proxy, שה-Volume מתחיל ריק, הוספת רכב, סימולציית מצלמה,
+3. מרים את המערכת ובודק עם `curl`: הדשבורד, ה-proxy, שה-Volume מתחיל ריק, הוספת שני רכבים,
    ושהתמונות שורדות `down` + `up`
 4. **בונוס:** ב-push ל-`main`, ורק אם הבדיקות עברו – מעלה את האימג'ים ל-GitHub Container Registry:
    `ghcr.io/trigaloitay-ship-it/parking-web` ו-`ghcr.io/trigaloitay-ship-it/parking-storage`
@@ -138,8 +136,7 @@ smart-parking-tracker/
 │   └── Dockerfile              # Apache – שרת אחסון בלבד, בלי תמונות בתוך האימג'
 ├── camera/samples/             # תמונות לוחיות לדוגמה (PNG) – "המצלמה"
 ├── scripts/
-│   ├── add-car.sh / .ps1       # מוסיף תמונת לוחית ל-Volume
-│   └── simulate-camera.sh / .ps1  # בוחר תמונה אקראית ומפעיל את add-car
+│   └── add-car.sh / .ps1       # "המצלמה": מוסיף תמונת לוחית ל-Volume
 ├── docs/                       # המצגת וצילום המסך
 ├── AI_USAGE.md                 # תיעוד השימוש ב-AI
 └── .github/workflows/
@@ -159,6 +156,6 @@ smart-parking-tracker/
 |---|---|
 | `'docker' is not recognized` | להתקין Docker Desktop: https://www.docker.com/products/docker-desktop |
 | `failed to connect to the docker API` | לפתוח את Docker Desktop ולחכות ל-"Engine running" |
-| הסקריפט `add-car.ps1` / `simulate-camera.ps1` נחסם | להריץ עם `powershell -ExecutionPolicy Bypass -File .\scripts\add-car.ps1 <תמונה>` |
+| הסקריפט `add-car.ps1` נחסם | להריץ עם `powershell -ExecutionPolicy Bypass -File .\scripts\add-car.ps1 <תמונה>` |
 | תמונה לא מופיעה בדשבורד | לוודא שהמערכת רצה (`docker compose ps`) ושהסיומת היא png / jpg / webp |
 | `service "storage" is not running` | להרים קודם את המערכת: `docker compose up -d` |

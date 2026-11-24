@@ -85,26 +85,16 @@
     const REFRESH_MS = 5000;
     const seen = new Set();
 
-    const IMAGE_RE = /\.(png|jpe?g|webp|gif)$/i;
-    const fileTimes = new Map();   // file -> Date (Last-Modified), fetched once per file
+    const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
 
-    // Camera file name convention: <PLATE>_<YYYYMMDD-HHMMSS>.<ext>
-    // Any other image name also works: plate = file name, time = when the file was saved.
-    async function parseFile(name) {
+    // File name from add-car: <PLATE>_<YYYYMMDD-HHMMSS>.<ext>  ->  plate + entry time
+    function parseFile(name) {
       const decoded = decodeURIComponent(name);
       const m = decoded.match(/^(.+)_(\d{8})-(\d{6})\.\w+$/);
-      if (m) {
-        const [, plate, d, t] = m;
-        const date = new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T${t.slice(0,2)}:${t.slice(2,4)}:${t.slice(4,6)}`);
-        return { file: name, plate, date };
-      }
-      if (!fileTimes.has(name)) {
-        // HEAD request: Apache returns the file's Last-Modified time without the image itself
-        const res = await fetch(STORAGE_URL + name, { method: "HEAD", cache: "no-store" });
-        const lm = res.headers.get("Last-Modified");
-        fileTimes.set(name, lm ? new Date(lm) : null);
-      }
-      return { file: name, plate: decoded.replace(IMAGE_RE, ""), date: fileTimes.get(name) };
+      if (!m) return { file: name, plate: decoded.replace(IMAGE_RE, ""), date: null };
+      const [, plate, d, t] = m;
+      const date = new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T${t.slice(0,2)}:${t.slice(2,4)}:${t.slice(4,6)}`);
+      return { file: name, plate, date };
     }
 
     async function loadCars() {
@@ -117,8 +107,7 @@
           .map(a => a.getAttribute("href"))
           .filter(h => IMAGE_RE.test(h));
 
-        const cars = (await Promise.all(files.map(parseFile)))
-          .sort((a, b) => (b.date || 0) - (a.date || 0));
+        const cars = files.map(parseFile).sort((a, b) => (b.date || 0) - (a.date || 0));
         render(cars);
         setStatus(true, "מחובר · עודכן " + new Date().toLocaleTimeString("he-IL"));
       } catch (e) {

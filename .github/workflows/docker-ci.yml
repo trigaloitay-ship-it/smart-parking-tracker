@@ -44,9 +44,9 @@ jobs:
           test -n "$FILE"
           curl -fsS -o /dev/null -w "%{content_type}\n" "http://localhost:8080/storage/images/$FILE" | grep -q "image/png"
 
-      - name: Smoke test - camera simulation
+      - name: Smoke test - add a second car
         run: |
-          sh scripts/simulate-camera.sh 482-17-305
+          sh scripts/add-car.sh camera/samples/482-17-305.png
           curl -fsS http://localhost:8080/storage/images/ | grep -q '482-17-305_'
 
       - name: Smoke test - photos survive "docker compose down" (persistence)
